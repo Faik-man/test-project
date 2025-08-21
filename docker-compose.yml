@@ -1,0 +1,84 @@
+---
+services:
+    php:
+        build: ./php/${PHP_VERSION}
+        volumes:
+            - ${SITE_PATH}:/var/www/bitrix
+            - ./logs/php:/var/log/php
+            - /etc/localtime:/etc/localtime/:ro
+        environment:
+            TZ: Europe/Moscow
+        networks:
+            - bitrixdock
+        restart: unless-stopped
+
+    web_server:
+        build: ./${WEB_SERVER_TYPE}
+        volumes:
+            - ${SITE_PATH}:/var/www/bitrix
+            - ./logs/${WEB_SERVER_TYPE}:/var/log/${WEB_SERVER_TYPE}
+            - /etc/localtime:/etc/localtime/:ro
+        #labels:
+        #  - "traefik.enable=true"
+        #  - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`techart-web.docker.lan`)"
+        #  - "traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80"
+        ports:
+           - 8081:80
+        networks:
+            - bitrixdock
+            - proxynet
+        environment:
+            TZ: Europe/Moscow
+        restart: unless-stopped
+
+    db:
+        build: ./${DB_SERVER_TYPE}
+        volumes:
+            - ./${DB_SERVER_TYPE}/init:/docker-entrypoint-initdb.d
+            - ./logs/db:/var/log/mysql
+            - /etc/localtime:/etc/localtime/:ro
+            - db:/var/lib/mysql
+        environment:
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            TZ: Europe/Moscow
+        networks:
+            - bitrixdock
+        restart: unless-stopped
+
+    memcached:
+        image: memcached:latest
+        networks:
+            - bitrixdock
+        environment:
+            TZ: Europe/Moscow
+        restart: unless-stopped
+
+    adminer:
+        image: dockette/adminer:full
+        environment:
+            UPLOAD: 1024M # upload_max_filesize, post_max_size
+            TZ: Europe/Moscow
+        restart: unless-stopped
+        #labels:
+        #  - "traefik.enable=true"
+        #  - "traefik.http.routers.adminer_${COMPOSE_PROJECT_NAME}.rule=Host(`adminer.techart-web.docker.lan`)"
+        #  - "traefik.http.services.adminer_${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80"
+        ports:
+           - 8080:80
+        networks:
+            - bitrixdock
+            - proxynet
+
+volumes:
+    db:
+        driver: local
+
+networks:
+    bitrixdock:
+      driver: bridge
+
+    proxynet:
+      external: true
